@@ -157,3 +157,85 @@ class MaterialBalanceFeature(Feature):
         return math.tanh(
             feature.difference / self.normalization_scale
         )
+
+class HandPieceBalanceFeature(Feature):
+    """
+    F02: 持ち駒価値差
+
+    現在局面における先手・後手それぞれの持ち駒の価値を
+    合計し、その差を求める。
+
+    盤上の駒はF01で扱うため、本特徴量には含めない。
+    """
+
+    feature_id = "F02"
+    name = "持ち駒価値差"
+    category = "Material"
+    classification = "A"
+
+    HAND_PIECE_VALUES = {
+        cshogi.PAWN: 1.0,
+        cshogi.LANCE: 3.0,
+        cshogi.KNIGHT: 3.0,
+        cshogi.SILVER: 5.0,
+        cshogi.GOLD: 6.0,
+        cshogi.BISHOP: 8.0,
+        cshogi.ROOK: 9.0,
+    }
+
+    def __init__(
+        self,
+        piece_values: dict[int, float] | None = None,
+        normalization_scale: float = 20.0,
+    ):
+        if piece_values is None:
+            self.piece_values = self.HAND_PIECE_VALUES.copy()
+        else:
+            self.piece_values = piece_values.copy()
+
+        if normalization_scale <= 0:
+            raise ValueError(
+                "normalization_scale must be greater than 0."
+            )
+
+        self.normalization_scale = normalization_scale
+
+    def extract(self, board) -> FeatureValue:
+        black_value = 0.0
+        white_value = 0.0
+
+        black_hand, white_hand = board.pieces_in_hand
+
+        for piece_type, count in enumerate(black_hand):
+            if piece_type == cshogi.NONE:
+                continue
+
+            if piece_type not in self.piece_values:
+                continue
+
+            black_value += (
+                self.piece_values[piece_type] * count
+            )
+
+        for piece_type, count in enumerate(white_hand):
+            if piece_type == cshogi.NONE:
+                continue
+
+            if piece_type not in self.piece_values:
+                continue
+
+            white_value += (
+                self.piece_values[piece_type] * count
+            )
+
+        return FeatureValue(
+            black=black_value,
+            white=white_value,
+        )
+
+    def normalized_difference(self, board) -> float:
+        feature = self.extract(board)
+
+        return math.tanh(
+            feature.difference / self.normalization_scale
+        )
